@@ -5,26 +5,34 @@
 
 #define print_error(...) fprintf(stderr, __VA_ARGS__)
 #define len(a) sizeof(a)/sizeof(a[0])
-#define MAX_TAGS_COUNT 16
-#define MAX_MSG_LENGTH 256
 
-typedef void proc(int argc, char **argv);
+const int PATH_MAX       = 4096;
+const int MAX_MSG_LENGTH = 256;
+const int MAX_TAGS_COUNT = 16;
+
+typedef int proc(int argc, char **argv, char *file_path);
+typedef void printUsage(char *cmd);
 typedef struct {
     char *name;
     char *desc;
     proc *proc;
+    printUsage *usage;
 } command;
 
-void addCommand(int argc, char **argv);
+int addCommand(int argc, char **argv, char *file_path);
+void addCommandUsage(char *cmd);
+int listCommand(int argc, char **argv, char *file_path);
+void listCommandUsage(char *cmd);
 
 command command_table[] = {
-    {"add", "Add new task to list", addCommand},
+    {"add", "Add new task to list", addCommand, addCommandUsage},
+    {"list", "Prints the list of existing tasks", listCommand, listCommandUsage},
 };
 
 // usage prints help information for command
-void usage(char *command) { 
+void usage(char *cmd) { 
     fprintf(stderr, "USAGE:\n");
-    fprintf(stderr, "   %s [OPTIONS] [SUBCOMMAND]\n", command);
+    fprintf(stderr, "   %s [OPTIONS] [SUBCOMMAND]\n", cmd);
     fprintf(stderr, "\n");
     fprintf(stderr, "OPTIONS:\n");
     fprintf(stderr, "   -V, --verion        Print version info and exit\n");
@@ -40,8 +48,52 @@ void usage(char *command) {
 }
 
 // version information about command version
-void version(char *command) {
-    fprintf(stderr, "%s: 0.0.0-dev\n", command);
+void version(char *cmd) {
+    fprintf(stderr, "%s: 0.0.0-dev\n", cmd);
+    exit(1);
+}
+
+void listCommandUsage(char *cmd) {
+    fprintf(stderr, "USAGE: \n");
+    fprintf(stderr, "   %s list [OPTIONS]\n", cmd);
+    fprintf(stderr, "\n");
+    fprintf(stderr, "OPTIONS:\n");
+    fprintf(stderr, "   -t, --tag           Filter tasks by tag\n");
+    fprintf(stderr, "   -h, --help          Show this help message\n");
+
+    exit(1);
+}
+
+int listCommand(int argc, char **argv, char *file_path) {
+
+    FILE *stream;
+    if (!(stream = fopen(file_path, "r"))) {
+        print_error("list: could not open file %s: %s\n", file_path, strerror(errno));
+        return 0;
+    }
+
+    char    *buf    = malloc(4 << 10);
+    size_t  len     = 0;
+    ssize_t nread   = 0;
+
+    while((nread = getline(&buf, &len, stream)) != -1) {
+        printf("len:%zu; nread:%zu; line:%s", len, nread, buf);
+    }
+
+    free(buf);
+    fclose(stream);
+
+    return 1;
+}
+
+void addCommandUsage(char *cmd) {
+    fprintf(stderr, "USAGE: \n");
+    fprintf(stderr, "   %s add [OPTIONS] [MESSAGE]\n", cmd);
+    fprintf(stderr, "\n");
+    fprintf(stderr, "OPTIONS:\n");
+    fprintf(stderr, "   -t, --tag           Add tag for a new task\n");
+    fprintf(stderr, "   -h, --help          Show this help message\n");
+
     exit(1);
 }
 
@@ -55,9 +107,10 @@ void writeLine(FILE *fd, char **tags, int ntags, char *msg) {
     fputc('\n', fd);
 }
 
-void addCommand(int argc, char **argv) {
+int addCommand(int argc, char **argv, char *file_path) {
     char *tags[MAX_TAGS_COUNT];
     char msg[MAX_MSG_LENGTH];
+
 
     int ntags = 0;
     int narg  = 0;
@@ -74,23 +127,47 @@ void addCommand(int argc, char **argv) {
     }
 
     if (narg == argc) {
-        print_error("task message is required");
-        /* addCommandUsage(); */
-        return;
+        print_error("add: task message is required\n\n");
+        return 0;
     }
 
     for (; narg != argc; narg++) {
-        if (msg[0] != 0) {
+        if (strlen(msg) != 0) {
             strcat(msg, " ");
         }
         strcat(msg, argv[narg]);
     }
 
-    FILE *fd = fopen(".todo", "a");
-    writeLine(fd, tags, ntags, msg);
-    fclose(fd);
+    FILE *fd;
+    if ((fd = fopen(file_path, "a"))) {
+        writeLine(fd, tags, ntags, msg);
+        fclose(fd);
+    } else {
+        print_error("add: could not open todo file %s: %s\n", file_path, strerror(errno));
+        return 0;
+    }
 
-    return;
+    return 1;
+}
+
+char* defaultFilePath() {
+    const char *FILE_NAME = "todo.txt";
+
+    char *homedir = getenv("HOME");
+    char *cwd[PATH_MAX];
+    char *file_path = malloc(sizeof(char*) * 1024);
+
+    if (strlen(homedir) != 0) {
+        strcat(file_path, homedir);
+    } else {
+        // TODO: get cwd
+        strcat(file_path, cwd);
+    }
+
+    strcat(file_path, "/");
+    strcat(file_path, FILE_NAME);
+
+    return file_path;
 }
 
 
@@ -99,6 +176,14 @@ int main(int argc, char **argv) {
         print_error("%s: missing subcommand argument\n\n", argv[0]);
         usage(argv[0]);
     }
+
+    char *homedir = getenv("HOME");
+
+
+    char *file_path = ".todo";  // default file path
+    int subargc;                // number of subcommand aruments
+    int i = 2;                  // position in argv array where subcommand arguments starts
+    char **subargv = NULL;
 
     // show help message
     if (strcmp(argv[1], "--help") == 0 || 
@@ -109,21 +194,37 @@ int main(int argc, char **argv) {
         strcmp(argv[1], "-V") == 0) version(argv[0]);
 
 
-
-    int subargc = argc - 2;
-    char **subargv;
-
-    if (subargc > 0) {
-        subargv = malloc(subargc*sizeof(char*));
-        for (int i = 2; i != argc; i++) {
-            subargv[i-2] = argv[i];
+    if (strcmp(argv[1], "--file") == 0 ||
+        strcmp(argv[1], "-f") == 0) {
+        if (argc > 2) {
+            file_path = argv[i++];
         }
     }
 
-
-    for (int i = 0; i != sizeof(command_table)/sizeof(command_table[0]); i++) {
+    subargc = argc-i;
+    command cmd;
+    for (int i = 0; i != sizeof(command_table)/sizeof(command); i++) {
         if (strcasecmp(command_table[i].name, argv[1]) == 0) {
-            command_table[i].proc(subargc, subargv);
+            cmd = command_table[i];
+
+            if (subargc > 0) {
+                // show help message
+                if (strcmp(argv[argc-subargc], "--help") == 0 || 
+                    strcmp(argv[argc-subargc], "-h") == 0) cmd.usage(argv[0]);
+
+                subargv = malloc(sizeof(char*) * subargc);
+                for (; i != 0; i--) {
+                    subargv[i-2] = argv[i];
+                }
+            }
+
+            int ok = cmd.proc(subargc, subargv, file_path);
+            free(subargv);
+
+            if (!ok) {
+                cmd.usage(argv[0]);
+            }
+
             return 0;
         }
     }
