@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <unistd.h>
 
 #define print_error(...) fprintf(stderr, __VA_ARGS__)
 #define len(a) sizeof(a)/sizeof(a[0])
@@ -64,6 +65,10 @@ void listCommandUsage(char *cmd) {
     exit(1);
 }
 
+// list of known priority tags in order highest priority
+char *known_tags[] = { "urgent", "high", "norm", "low" };
+char *colors[] = { "\033[31m", "\033[93m", "\033[34m", "\033[32m" };
+
 int listCommand(int argc, char **argv, char *file_path) {
 
     FILE *stream;
@@ -72,12 +77,60 @@ int listCommand(int argc, char **argv, char *file_path) {
         return 0;
     }
 
+    char    *tags[MAX_TAGS_COUNT];
     char    *buf    = malloc(4 << 10);
     size_t  len     = 0;
     ssize_t nread   = 0;
 
+    // TODO(nk2ge5k): кажется это можно внести в отдельную функцию
+    int ntags = 0;
+    int narg  = 0;
+    for (; narg != argc; narg += 2) {
+        if ((narg+1) > argc || argv[narg][0] != '-') {
+            break;
+        }
+
+        if (strcmp("-t", argv[narg]) == 0 || strcmp("--tag", argv[narg]) == 0) {
+            if (strlen(argv[narg+1]) > 0) {
+                tags[ntags++] = argv[narg+1];
+            }
+        }
+    }
+
     while((nread = getline(&buf, &len, stream)) != -1) {
-        printf("len:%zu; nread:%zu; line:%s", len, nread, buf);
+        if (ntags > 0) {
+            // если бы передан список тэгов в команду, то пытамся отфильтровать
+            // те таски, которые не содержат преданных тэгов, в случае если
+            // список тэгов пуст, то оставляем все таски
+            int hasTag = 0;
+
+            for (int i = 0; i < ntags; i++) {
+                if (hasTag = (strstr(buf, tags[i]) != NULL)) {
+                    break;
+                }
+            }
+            if (!hasTag) {
+                continue;
+            }
+        }
+
+        char *color = "\033[39m"; // default color
+
+        for (int i = 0; i < (sizeof(known_tags)/sizeof(known_tags[0])); i++) {
+
+            if (strstr(buf, known_tags[i]) != NULL) {
+                color = colors[i];
+                break;
+            }
+        }
+
+        // TOOD: scan for tag
+        // Кажется разуммным будет следующий алгоритм:
+        // найти первый тэг понять для него цвет видимо из какого-то конфига
+        // и напечатать с этим цветом, кажется на текущий момент будет достаточно
+        // если конфиг цветов будет прямо в бинаре. Потом можно попробовать
+        // притащить json или yaml
+        printf("%s%s\033[0m", color, buf);
     }
 
     free(buf);
@@ -85,6 +138,7 @@ int listCommand(int argc, char **argv, char *file_path) {
 
     return 1;
 }
+
 
 void addCommandUsage(char *cmd) {
     fprintf(stderr, "USAGE: \n");
@@ -108,13 +162,14 @@ void writeLine(FILE *fd, char **tags, int ntags, char *msg) {
 }
 
 int addCommand(int argc, char **argv, char *file_path) {
+
     char *tags[MAX_TAGS_COUNT];
     char msg[MAX_MSG_LENGTH];
 
 
     int ntags = 0;
     int narg  = 0;
-    for (; narg < argc; narg += 2) {
+    for (; narg != argc; narg += 2) {
         if ((narg+1) > argc || argv[narg][0] != '-') {
             break;
         }
@@ -150,22 +205,25 @@ int addCommand(int argc, char **argv, char *file_path) {
     return 1;
 }
 
-char* defaultFilePath() {
+char* defaultFilePath(char *file_path, int size) {
     const char *FILE_NAME = "todo.txt";
 
     char *homedir = getenv("HOME");
-    char *cwd[PATH_MAX];
-    char *file_path = malloc(sizeof(char*) * 1024);
+    int hlen = strlen(homedir);
 
-    if (strlen(homedir) != 0) {
-        strcat(file_path, homedir);
+    if (hlen != 0 && hlen < size) {
+        strcpy(file_path, homedir);
     } else {
+        char cwd[PATH_MAX];
         // TODO: get cwd
-        strcat(file_path, cwd);
+        getcwd(cwd, size);
+        strcpy(file_path, cwd);
     }
 
-    strcat(file_path, "/");
-    strcat(file_path, FILE_NAME);
+    if (size > (strlen(file_path) + strlen(FILE_NAME) + 1)) {
+        strcat(file_path, "/");
+        strcat(file_path, FILE_NAME);
+    }
 
     return file_path;
 }
@@ -177,12 +235,10 @@ int main(int argc, char **argv) {
         usage(argv[0]);
     }
 
-    char *homedir = getenv("HOME");
+    char *file_path = defaultFilePath(malloc(sizeof(char) * PATH_MAX), PATH_MAX);
 
-
-    char *file_path = ".todo";  // default file path
-    int subargc;                // number of subcommand aruments
-    int i = 2;                  // position in argv array where subcommand arguments starts
+    int subargc;            // number of subcommand aruments
+    int comm_argc = 2;      // position in argv array where subcommand arguments starts
     char **subargv = NULL;
 
     // show help message
@@ -196,16 +252,17 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "--file") == 0 ||
         strcmp(argv[1], "-f") == 0) {
-        if (argc > 2) {
-            file_path = argv[i++];
+        if (argc > comm_argc) {
+            free(file_path);
+            file_path = argv[comm_argc++];
         }
     }
 
-    subargc = argc-i;
+    subargc = argc-comm_argc;
     command cmd;
-    for (int i = 0; i != sizeof(command_table)/sizeof(command); i++) {
-        if (strcasecmp(command_table[i].name, argv[1]) == 0) {
-            cmd = command_table[i];
+    for (int j = 0; j != sizeof(command_table)/sizeof(command); j++) {
+        if (strcasecmp(command_table[j].name, argv[1]) == 0) {
+            cmd = command_table[j];
 
             if (subargc > 0) {
                 // show help message
@@ -213,8 +270,8 @@ int main(int argc, char **argv) {
                     strcmp(argv[argc-subargc], "-h") == 0) cmd.usage(argv[0]);
 
                 subargv = malloc(sizeof(char*) * subargc);
-                for (; i != 0; i--) {
-                    subargv[i-2] = argv[i];
+                for (int i = 0; i != subargc; i++) {
+                    subargv[i] = argv[comm_argc+i];
                 }
             }
 
