@@ -24,25 +24,28 @@ int addCommand(int argc, char **argv, char *file_path);
 void addCommandUsage(char *cmd);
 int listCommand(int argc, char **argv, char *file_path);
 void listCommandUsage(char *cmd);
+int editCommand(int argc, char **argv, char *file_path);
+void editCommandUsage(char *cmd);
 
 command command_table[] = {
     {"add", "Add new task to list", addCommand, addCommandUsage},
     {"list", "Prints the list of existing tasks", listCommand, listCommandUsage},
+    {"edit", "Allows to edit todo list", editCommand, editCommandUsage},
 };
 
 // usage prints help information for command
 void usage(char *cmd) { 
     fprintf(stderr, "USAGE:\n");
-    fprintf(stderr, "   %s [OPTIONS] [SUBCOMMAND]\n", cmd);
+    fprintf(stderr, "\t%s [OPTIONS] [SUBCOMMAND]\n", cmd);
     fprintf(stderr, "\n");
     fprintf(stderr, "OPTIONS:\n");
-    fprintf(stderr, "   -V, --verion        Print version info and exit\n");
-    fprintf(stderr, "   -h, --help          Show this help message\n");
+    fprintf(stderr, "\t-V, --verion\tPrint version info and exit\n");
+    fprintf(stderr, "\t-h, --help\tShow this help message\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "SUBCOMMANDS:\n");
 
     for (int i = 0; i != sizeof(command_table)/sizeof(command_table[0]); i++) {
-        fprintf(stderr, "   %s     %s\n", command_table[i].name, command_table[i].desc);
+        fprintf(stderr, "\t%5.5s\t\t%s\n", command_table[i].name, command_table[i].desc);
     }
 
     exit(1);
@@ -54,20 +57,32 @@ void version(char *cmd) {
     exit(1);
 }
 
+void editCommandUsage(char *cmd) {
+    fprintf(stderr, "USAGE: \n");
+    fprintf(stderr, "\t%s edit\n", cmd);
+    fprintf(stderr, "\n");
+
+    exit(1);
+}
+
+int editCommand(int argc, char **argv, char *file_path) {
+    return execl("/usr/local/bin/vim", "vim", file_path);
+}
+
 void listCommandUsage(char *cmd) {
     fprintf(stderr, "USAGE: \n");
-    fprintf(stderr, "   %s list [OPTIONS]\n", cmd);
+    fprintf(stderr, "\t%s list [OPTIONS]\n", cmd);
     fprintf(stderr, "\n");
     fprintf(stderr, "OPTIONS:\n");
-    fprintf(stderr, "   -t, --tag           Filter tasks by tag\n");
-    fprintf(stderr, "   -h, --help          Show this help message\n");
+    fprintf(stderr, "\t-t, --tag\t\tFilter tasks by tag\n");
+    fprintf(stderr, "\t-h, --help\t\tShow this help message\n");
 
     exit(1);
 }
 
 // list of known priority tags in order highest priority
-char *known_tags[] = { "urgent", "high", "norm", "low" };
-char *colors[] = { "\033[31m", "\033[93m", "\033[34m", "\033[32m" };
+char *known_tags[] = { "[urgent]", "[high]", "[norm]", "[low]" };
+char *colors[] = { "\033[31m", "\033[33m", "\033[34m", "\033[32m" };
 
 int listCommand(int argc, char **argv, char *file_path) {
 
@@ -130,7 +145,7 @@ int listCommand(int argc, char **argv, char *file_path) {
         // и напечатать с этим цветом, кажется на текущий момент будет достаточно
         // если конфиг цветов будет прямо в бинаре. Потом можно попробовать
         // притащить json или yaml
-        printf("%s%s\033[0m", color, buf);
+        printf("\t%s%s\033[0m", color, buf);
     }
 
     free(buf);
