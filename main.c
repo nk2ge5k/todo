@@ -160,63 +160,91 @@ void addCommandUsage(char *cmd) {
     fprintf(stderr, "   %s add [OPTIONS] [MESSAGE]\n", cmd);
     fprintf(stderr, "\n");
     fprintf(stderr, "OPTIONS:\n");
-    fprintf(stderr, "   -t, --tag           Add tag for a new task\n");
-    fprintf(stderr, "   -h, --help          Show this help message\n");
+    fprintf(stderr, "\t-P, --priority\tTask priority (urgent|high|norm|low)\n");
+    fprintf(stderr, "\t-p, --project\tTask project\n");
+    fprintf(stderr, "\t-h, --help\tShow this help message\n");
 
     exit(1);
 }
 
-void writeLine(FILE *fd, char **tags, int ntags, char *msg) {
-    for (int i = 0; i != ntags; i++) {
-        fputc('[', fd);
-        fputs(tags[i], fd);
-        fputs("] ", fd);
-    }
-    fputs(msg, fd);
-    fputc('\n', fd);
+// put puts key-value pait into the file with trailing separatort character
+void put(char *key, char *val, char sep, FILE *fd) {
+    fputs(key, fd);
+    fputc('=', fd);
+    fputs(val, fd);
+    fputc(sep, fd);
 }
 
 int addCommand(int argc, char **argv, char *file_path) {
+    char *project  = NULL;
+    char *priority = NULL;
+    char *msg = malloc(sizeof(char) * MAX_MSG_LENGTH);
+    int i = 0;
 
-    char *tags[MAX_TAGS_COUNT];
-    char msg[MAX_MSG_LENGTH];
-
-
-    int ntags = 0;
-    int narg  = 0;
-    for (; narg != argc; narg += 2) {
-        if ((narg+1) > argc || argv[narg][0] != '-') {
+    for (; i != argc; i += 2) {
+        if ((i+1) > argc || argv[i][0] != '-') {
             break;
         }
 
-        if (strcmp("-t", argv[narg]) == 0 || strcmp("--tag", argv[narg]) == 0) {
-            if (strlen(argv[narg+1]) > 0) {
-                tags[ntags++] = argv[narg+1];
+        if (strcmp("-P", argv[i]) == 0 || 
+            strcmp("--priority", argv[i]) == 0) {
+            priority = argv[i+1];
+            continue;
+        }
+
+        if (strcmp("-p", argv[i]) == 0 ||
+            strcmp("--project", argv[i]) == 0) {
+            project = argv[i+1];
+            continue;
+        }
+
+        free(msg);
+        print_error("add: unknown option \"%s\"\n\n", argv[i]);
+        return 0;
+    }
+
+    if (priority != NULL) {
+        char *priority_enum[4] = {"urgent", "high", "norm", "low"};
+        int found = 0;
+
+        for (int j = 0; j != 4; j++) {
+            if (found = (strcasecmp(priority, priority_enum[j]) == 0)) {
+                priority = priority_enum[j];
+                break;
             }
+        }
+
+        if (!found) {
+            print_error("add: unknown priority \"%s\"\n\n", priority);
+            free(msg);
+            return 0;
         }
     }
 
-    if (narg == argc) {
+    if (i == argc) {
         print_error("add: task message is required\n\n");
         return 0;
     }
 
-    for (; narg != argc; narg++) {
-        if (strlen(msg) != 0) {
-            strcat(msg, " ");
-        }
-        strcat(msg, argv[narg]);
+    for (; i != argc; i++) {
+        msg = strcat(msg, argv[i]);
+        if (i < argc-1) strcat(msg, " ");
     }
 
     FILE *fd;
     if ((fd = fopen(file_path, "a"))) {
-        writeLine(fd, tags, ntags, msg);
+        if (priority != NULL && strlen(priority) > 0) put("priority", priority, '\t', fd);
+        if (project  != NULL && strlen(project)  > 0) put("project", project, '\t', fd);
+        put("message", msg, '\n', fd);
+
         fclose(fd);
     } else {
+        free(msg);
         print_error("add: could not open todo file %s: %s\n", file_path, strerror(errno));
         return 0;
     }
 
+    free(msg);
     return 1;
 }
 
