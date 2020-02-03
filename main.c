@@ -4,12 +4,68 @@
 #include <errno.h>
 #include <unistd.h>
 
+/**
+// may be i shoudl just write it 
+
+#include <stdio.h>
+#include <stdlib.h>
+
+typedef struct {
+    char priority[32];
+    char project[255];
+    char message[255];
+} todo;
+
+void read() {
+    todo task;
+
+    FILE *fd = fopen("todo", "r");
+    fread(&task, sizeof(task), 1, fd);
+    fclose(fd);
+
+    printf("project=%s priority=%s message=%s\n", 
+            task.priority, task.project, task.message);
+}
+
+
+void write() {
+
+    todo task = {
+        .project = "some_project",
+        .priority = "some_priority",
+        .message = "message"
+    };
+
+    FILE *fd = fopen("todo", "a");
+    fwrite(&task, sizeof(todo), 1, fd);
+    fclose(fd);
+}
+**/
+
 #define print_error(...) fprintf(stderr, __VA_ARGS__)
 #define len(a) sizeof(a)/sizeof(a[0])
 
 const int PATH_MAX       = 4096;
 const int MAX_MSG_LENGTH = 256;
 const int MAX_TAGS_COUNT = 16;
+
+/**
+ * Я могу записывать записать сначала текущий айдишник
+ * а потом за ним такси, даже потом можно организовать посик по 
+ * таскам
+ */
+
+typedef struct {
+    unsigned int curr_id;
+    unsigned int len;
+} header;
+
+typedef struct {
+    unsigned int id;
+    char *priority;
+    char *project;
+    char *message;
+} task;
 
 typedef int proc(int argc, char **argv, char *file_path);
 typedef void printUsage(char *cmd);
@@ -120,7 +176,7 @@ int listCommand(int argc, char **argv, char *file_path) {
             int hasTag = 0;
 
             for (int i = 0; i < ntags; i++) {
-                if (hasTag = (strstr(buf, tags[i]) != NULL)) {
+                if ((hasTag = (strstr(buf, tags[i]) != NULL))) {
                     break;
                 }
             }
@@ -208,7 +264,7 @@ int addCommand(int argc, char **argv, char *file_path) {
         int found = 0;
 
         for (int j = 0; j != 4; j++) {
-            if (found = (strcasecmp(priority, priority_enum[j]) == 0)) {
+            if ((found = (strcasecmp(priority, priority_enum[j]) == 0))) {
                 priority = priority_enum[j];
                 break;
             }
@@ -249,7 +305,7 @@ int addCommand(int argc, char **argv, char *file_path) {
 }
 
 char* defaultFilePath(char *file_path, int size) {
-    const char *FILE_NAME = "todo.txt";
+    const char *FILE_NAME = ".todo";
 
     char *homedir = getenv("HOME");
     int hlen = strlen(homedir);
