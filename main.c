@@ -117,7 +117,7 @@ int listCommand(int argc, char **argv, char *file_path) {
             continue;
         }
 
-        print_error("list: unknown option \"%s\"", argv[narg]);
+        print_error("list: unknown option \"%s\"\n", argv[narg]);
         return 0;
     }
 
@@ -201,7 +201,7 @@ int addCommand(int argc, char **argv, char *file_path) {
             continue;
         }
 
-        print_error("add: unknown option \"%s\"", argv[narg]);
+        print_error("add: unknown option \"%s\"\n", argv[narg]);
         return 0;
     }
 
