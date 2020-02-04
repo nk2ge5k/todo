@@ -5,7 +5,6 @@
 #include <unistd.h>
 
 #define print_error(...) fprintf(stderr, __VA_ARGS__)
-#define len(a) sizeof(a)/sizeof(a[0])
 
 const int PATH_MAX       = 4096;
 const int MAX_MSG_LENGTH = 256;
@@ -53,7 +52,7 @@ void usage(char *cmd) {
 
 // version information about command version
 void version(char *cmd) {
-    fprintf(stderr, "%s: 0.0.0-dev\n", cmd);
+    fprintf(stderr, "%s: 1.0.0\n", cmd);
     exit(1);
 }
 
@@ -65,8 +64,55 @@ void editCommandUsage(char *cmd) {
     exit(1);
 }
 
+int lookupExecutable(char *path, char *cmd) {
+    if (path == NULL) {
+        return 0;
+    }
+
+    char *path_env = getenv("PATH");
+    if (path_env == NULL) {
+        return 0;
+    }
+
+    char file_path[PATH_MAX];
+    char *token = strtok(path_env, ":");
+
+    while (token != NULL) {
+        printf("len=%lu, token=%s\n", strlen(token), token);
+
+        strcat(file_path, token);
+        strcat(file_path, "/");
+        strcat(file_path, cmd);
+
+        printf("check %s\n", file_path);
+        if (access(file_path, X_OK) == 0) {
+            strcat(path, file_path);
+            return 1;
+        }
+
+        token = strtok(NULL, ":");
+        memset(&file_path, 0, sizeof(file_path));
+    }
+
+    return 0;
+}
+
 int editCommand(int argc, char **argv, char *file_path) {
-    return execl("/usr/local/bin/vim", "vim", file_path);
+    char *editor = getenv("EDITOR");
+    if (editor == NULL) {
+        print_error("edit: EDITOR environment variable does not set\n");
+        return 0;
+    }
+
+    char cmd[4096];
+
+    sprintf(cmd, "%s %s", editor, file_path);
+    if (system(cmd) == -1) {
+        print_error("edit: could not execute command \"%s\": %s\n", cmd, strerror(errno));
+        return 0;
+    }
+
+    return 1;
 }
 
 void listCommandUsage(char *cmd) {
@@ -85,13 +131,6 @@ char *known_tags[] = { "[urgent]", "[high]", "[norm]", "[low]" };
 char *colors[] = { "\033[31m", "\033[33m", "\033[34m", "\033[32m" };
 
 int listCommand(int argc, char **argv, char *file_path) {
-
-    FILE *stream;
-    if (!(stream = fopen(file_path, "r"))) {
-        print_error("list: could not open file %s: %s\n", file_path, strerror(errno));
-        return 0;
-    }
-
     char    *tags[MAX_TAGS_COUNT];
     char    *buf    = malloc(4 << 10);
     size_t  len     = 0;
@@ -105,11 +144,20 @@ int listCommand(int argc, char **argv, char *file_path) {
             break;
         }
 
-        if (strcmp("-t", argv[narg]) == 0 || strcmp("--tag", argv[narg]) == 0) {
-            if (strlen(argv[narg+1]) > 0) {
-                tags[ntags++] = argv[narg+1];
-            }
+        if (strcmp("-t", argv[narg]) == 0 || 
+            strcmp("--tag", argv[narg]) == 0) {
+            tags[ntags++] = argv[narg+1];
+            continue;
         }
+
+        print_error("list: unknown option \"%s\"", argv[narg]);
+        return 0;
+    }
+
+    FILE *stream;
+    if (!(stream = fopen(file_path, "r"))) {
+        print_error("list: could not open file %s: %s\n", file_path, strerror(errno));
+        return 0;
     }
 
     while((nread = getline(&buf, &len, stream)) != -1) {
@@ -120,7 +168,7 @@ int listCommand(int argc, char **argv, char *file_path) {
             int hasTag = 0;
 
             for (int i = 0; i < ntags; i++) {
-                if (hasTag = (strstr(buf, tags[i]) != NULL)) {
+                if ((hasTag = (strstr(buf, tags[i]) != NULL))) {
                     break;
                 }
             }
@@ -157,11 +205,11 @@ int listCommand(int argc, char **argv, char *file_path) {
 
 void addCommandUsage(char *cmd) {
     fprintf(stderr, "USAGE: \n");
-    fprintf(stderr, "   %s add [OPTIONS] [MESSAGE]\n", cmd);
+    fprintf(stderr, "\t%s add [OPTIONS] [MESSAGE]\n", cmd);
     fprintf(stderr, "\n");
     fprintf(stderr, "OPTIONS:\n");
-    fprintf(stderr, "   -t, --tag           Add tag for a new task\n");
-    fprintf(stderr, "   -h, --help          Show this help message\n");
+    fprintf(stderr, "\t-t, --tag\tAdd tag for a new task\n");
+    fprintf(stderr, "\t-h, --help\tShow this help message\n");
 
     exit(1);
 }
@@ -189,11 +237,14 @@ int addCommand(int argc, char **argv, char *file_path) {
             break;
         }
 
-        if (strcmp("-t", argv[narg]) == 0 || strcmp("--tag", argv[narg]) == 0) {
-            if (strlen(argv[narg+1]) > 0) {
-                tags[ntags++] = argv[narg+1];
-            }
+        if (strcmp("-t", argv[narg]) == 0 || 
+            strcmp("--tag", argv[narg]) == 0) {
+            tags[ntags++] = argv[narg+1];
+            continue;
         }
+
+        print_error("add: unknown option \"%s\"", argv[narg]);
+        return 0;
     }
 
     if (narg == argc) {
