@@ -64,39 +64,6 @@ void editCommandUsage(char *cmd) {
     exit(1);
 }
 
-int lookupExecutable(char *path, char *cmd) {
-    if (path == NULL) {
-        return 0;
-    }
-
-    char *path_env = getenv("PATH");
-    if (path_env == NULL) {
-        return 0;
-    }
-
-    char file_path[PATH_MAX];
-    char *token = strtok(path_env, ":");
-
-    while (token != NULL) {
-        printf("len=%lu, token=%s\n", strlen(token), token);
-
-        strcat(file_path, token);
-        strcat(file_path, "/");
-        strcat(file_path, cmd);
-
-        printf("check %s\n", file_path);
-        if (access(file_path, X_OK) == 0) {
-            strcat(path, file_path);
-            return 1;
-        }
-
-        token = strtok(NULL, ":");
-        memset(&file_path, 0, sizeof(file_path));
-    }
-
-    return 0;
-}
-
 int editCommand(int argc, char **argv, char *file_path) {
     char *editor = getenv("EDITOR");
     if (editor == NULL) {
@@ -136,7 +103,7 @@ int listCommand(int argc, char **argv, char *file_path) {
     size_t  len     = 0;
     ssize_t nread   = 0;
 
-    // TODO(nk2ge5k): кажется это можно внести в отдельную функцию
+    // TODO(nk2ge5k): may be move to separate function
     int ntags = 0;
     int narg  = 0;
     for (; narg != argc; narg += 2) {
@@ -162,9 +129,6 @@ int listCommand(int argc, char **argv, char *file_path) {
 
     while((nread = getline(&buf, &len, stream)) != -1) {
         if (ntags > 0) {
-            // если бы передан список тэгов в команду, то пытамся отфильтровать
-            // те таски, которые не содержат преданных тэгов, в случае если
-            // список тэгов пуст, то оставляем все таски
             int hasTag = 0;
 
             for (int i = 0; i < ntags; i++) {
@@ -187,12 +151,6 @@ int listCommand(int argc, char **argv, char *file_path) {
             }
         }
 
-        // TOOD: scan for tag
-        // Кажется разуммным будет следующий алгоритм:
-        // найти первый тэг понять для него цвет видимо из какого-то конфига
-        // и напечатать с этим цветом, кажется на текущий момент будет достаточно
-        // если конфиг цветов будет прямо в бинаре. Потом можно попробовать
-        // притащить json или yaml
         printf("\t%s%s\033[0m", color, buf);
     }
 
@@ -272,7 +230,7 @@ int addCommand(int argc, char **argv, char *file_path) {
 }
 
 char* defaultFilePath(char *file_path, int size) {
-    const char *FILE_NAME = "todo.txt";
+    const char *FILE_NAME = ".todo";
 
     char *homedir = getenv("HOME");
     int hlen = strlen(homedir);
@@ -281,7 +239,6 @@ char* defaultFilePath(char *file_path, int size) {
         strcpy(file_path, homedir);
     } else {
         char cwd[PATH_MAX];
-        // TODO: get cwd
         getcwd(cwd, size);
         strcpy(file_path, cwd);
     }
