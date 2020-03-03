@@ -96,6 +96,9 @@ int editCommand(int argc, char **argv, char *file_path) {
 char *colors[] = {"\033[32m","\033[34m","\033[33m","\033[31m"};
 
 int listCommand(int argc, char **argv, char *file_path) {
+    if(access(file_path, F_OK) != 0) {
+        return 1;
+    }
     FILE *stream;
 
     if (!(stream = fopen(file_path, "r"))) {

@@ -11,10 +11,11 @@ typedef unsigned char priority;
 typedef struct task {
     int id;
     priority priority;                  // integer representation of task priority
-    char project[MAX_PROJECT];          // optional task project
-    char description[MAX_DESCRIPTION];  // task description
     time_t created_at;                  // time of task creation
     time_t done_at;
+
+    char project[MAX_PROJECT];          // optional task project
+    char description[MAX_DESCRIPTION];  // task description
 } task;
 
 
