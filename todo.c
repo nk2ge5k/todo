@@ -45,16 +45,15 @@ int writeHeader(header *head, FILE *fd) {
         return 0;
     }
 
-    printf("witing header\n");
-    printf("version: %d\n", head->version);
-    printf("_id_seq: %d\n", head->_id_seq);
-    printf("count: %d\n", head->count);
     // wirte header to the file
     if (fwrite(head, sizeof(header), 1, fd) != 1) {
         return 0;
     }
     // return to the previous position
     return fseek(fd, cursor, SEEK_SET) == 0;
+}
+
+int writeTask() {
 }
 
 int isNumber(char *str) {
@@ -65,32 +64,108 @@ int isNumber(char *str) {
     return 1;
 }
 
-int doneCommand(int arch, char **argv, char *file_path) {
+int lookupTask(FILE *stream, int id, task *t) {
+    if (t == NULL) {
+        // TODO: create temporaray task
+    }
+
+    // TODO: should i use temp task?
+    header head;
+    if (!readHeader(&head, stream)) {
+        fprintf(stderr, "could not read file header: %s", strerror(errno));
+        return 0;
+    }
+
+    int low  = 0;
+    int high = head.count - 1;
+    int mid;
+
+    int offset;
+
+    while (low <= high) {
+        mid = ((unsigned int)low + (unsigned int)high) >> 1;
+        offset = sizeof(header)+(sizeof(task)*mid); // TODO: bounds check
+
+        if(fseek(stream, offset, SEEK_SET) == -1) {
+            fprintf(stderr, "could not seek file offset %d: %s", offset, strerror(errno));
+            return 0;
+        }
+
+        if (fread(t, sizeof(task), 1, stream) != 1) {
+            fprintf(stderr, "could not read task: %s", strerror(errno));
+            return 0;
+        }
+
+        if (t->id < id)  {
+            low  = mid + 1;
+        } else if (t->id > id) {
+            high = mid - 1;
+        } else {
+            if(fseek(stream, offset, SEEK_SET) == -1) {
+                fprintf(stderr, "could not seek file offset %d: %s", offset, strerror(errno));
+                return 0;
+            }
+            return 1;
+        }
+    }
 
     return 0;
 }
 
-int editCommand(int argc, char **argv, char *file_path) {
-    fprintf(stderr, "edit: command not implemented yet\n");
-    return 0;
-
-    char *editor = getenv("EDITOR");
-    if (editor == NULL) {
-        fprintf(stderr, "edit: EDITOR environment variable does not set\n");
+int doneCommand(int argc, char **argv, char *file_path) {
+    if (argc < 1) {
+        fprintf(stderr, "done: missing task id argument\n");
         return 0;
     }
 
-    char cmd[4096];
+    int target_id = atoi(argv[0]);
 
-    sprintf(cmd, "%s %s", editor, file_path);
-    if (system(cmd) == -1) {
-        fprintf(stderr, "edit: could not execute command \"%s\": %s\n", cmd, strerror(errno));
+    if(access(file_path, F_OK) != 0) {
+        return 1;
+    }
+
+    FILE *stream;
+    if (!(stream = fopen(file_path, "r+"))) {
+        fprintf(stderr, "done: could not open todo file %s: %s\n",
+                file_path, strerror(errno));
         return 0;
     }
 
+    task t;
+    memset(&t, sizeof(task), 0);
+
+    if (!lookupTask(stream, target_id, &t)) {
+        fprintf(stderr, "done: could not find task %d\n", target_id);
+        fclose(stream);
+
+        return 0;
+    }
+
+    t.done_at = time(NULL);
+
+    if (fwrite(&t, sizeof(task), 1, stream) != 1) {
+        fprintf(stderr, "done: could not write task to the file: %s\n", strerror(errno));
+        fclose(stream);
+
+        return 0;
+    }
+
+    fclose(stream);
     return 1;
 }
 
+static int cmptasks(const void *p1, const void *p2) {
+    const task *t1 = (task *)p1;
+    const task *t2 = (task *)p2;
+
+    if (t1->priority == t2->priority) {
+        if (t1->id == t1->id) return 0;
+
+        return t1->id < t2->id ? -1 : 1;
+    }
+
+    return t1->priority > t2->priority ? -1 : 1;
+}
 
 // list of known priority tags in order highest priority
 char *colors[] = {"\033[32m","\033[34m","\033[33m","\033[31m"};
@@ -114,25 +189,25 @@ int listCommand(int argc, char **argv, char *file_path) {
         return 0;
     }
 
-    task t;
-    memset(&t, 0, sizeof(task));
+    task *tasks = malloc(sizeof(task) * head.count);
+    task *t = tasks;
+    while (fread(t, sizeof(task), 1, stream) == 1) t++;
 
-    while (fread(&t, sizeof(task), 1, stream) == 1) {
+    qsort(tasks, head.count, sizeof(task), cmptasks);
+
+    for (int i = 0; i < head.count; i++) {
+        if (tasks[i].done_at > 0) continue;
+
         int color = 0;
-        for (int i = 63; i <= 257; i+= 64)  {
-            if (t.priority < i) {
+        for (int j = 63; j <= 257; j+= 64)  {
+            if (tasks[i].priority < j) {
                 break;
             }
             color++;
         }
-        /* printf("id: %d\n", t.id); */
-        /* printf("priority: %d\n", t.priority); */
-        /* printf("project: %s\n", t.project); */
-        /* printf("description: %s\n", t.description); */
-        /* printf("created_at: %d\n", t.created_at); */
-        /* printf("done_at: %d\n", t.done_at); */
 
-        printf("[%s] %s%s\033[0m\n", t.project, colors[color], t.description);
+        printf("%3d [%s] %s%s\033[0m\n", 
+                tasks[i].id, tasks[i].project, colors[color], tasks[i].description);
     }
 
     if (errno != 0) {
@@ -164,7 +239,7 @@ int addCommand(int argc, char **argv, char *file_path) {
             break;
         }
 
-        if (strcmp("-P", argv[narg]) == 0 ||
+        if (strcmp("-p", argv[narg]) == 0 ||
             strcmp("--project", argv[narg]) == 0) {
 
             if (strlen(argv[narg + 1]) + 1 > MAX_PROJECT) {
@@ -176,7 +251,7 @@ int addCommand(int argc, char **argv, char *file_path) {
             continue;
         }
 
-        if (strcmp("-p", argv[narg]) == 0 || 
+        if (strcmp("-P", argv[narg]) == 0 || 
             strcmp("--priority", argv[narg]) == 0) {
 
             if (!isNumber(argv[narg+1])) {
@@ -185,7 +260,7 @@ int addCommand(int argc, char **argv, char *file_path) {
                 return 0;
             }
             int p = atoi(argv[narg+1]);
-            if (p < 0 || 255 < p) {
+            if (p < 0 || 255 <= p) {
                 fprintf(stderr, "add: invalid value of \"%s\" option, "
                         "expected number between 0 and 65535\n", argv[narg]);
                 return 0;
@@ -213,10 +288,6 @@ int addCommand(int argc, char **argv, char *file_path) {
         strcat(t.description, argv[narg]);
         strcat(t.description, " ");
     }
-
-    // TODO: may be print file header with meta information about count of tasks
-    // int the file and current id and version of the file to be able to stop
-    // reading it if its too old of a version
 
     FILE *stream;
     if (access(file_path, R_OK | W_OK) == 0) {
@@ -259,7 +330,7 @@ int addCommand(int argc, char **argv, char *file_path) {
     }
 
     t.created_at = time(NULL);
-    t.id = h._id_seq++;
+    t.id = ++h._id_seq;
     h.count++;
 
     size_t written = fwrite(&t, sizeof(task), 1, stream);

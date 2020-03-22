@@ -41,5 +41,5 @@ typedef void printUsage(char *cmd);
 int addCommand(int argc, char **argv, char *file_path);
 // listCommand prints list of existing task into standard output
 int listCommand(int argc, char **argv, char *file_path);
-// editCommand opens editor to allow editing of the tasks
-int editCommand(int argc, char **argv, char *file_path);
+// doneCommand changes task status to done
+int doneCommand(int argc, char **argv, char *file_path);

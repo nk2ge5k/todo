@@ -9,7 +9,7 @@
 
 // version information about command version
 void version(char *cmd) {
-    fprintf(stderr, "%s: 1.0.0\n", cmd);
+    fprintf(stderr, "%s: 2.0.0\n", cmd);
     exit(1);
 }
 
@@ -19,33 +19,36 @@ void addCommandUsage(char *cmd) {
     fprintf(stderr, "\t%s add [OPTIONS] [MESSAGE]\n", cmd);
     fprintf(stderr, "\n");
     fprintf(stderr, "OPTIONS:\n");
-    fprintf(stderr, "\t-t, --tag\tAdd tag for a new task\n");
+    fprintf(stderr, "\t-p, --project\tProject name\n");
+    fprintf(stderr, "\t-P, --priority\tTask priority\n");
     fprintf(stderr, "\t-h, --help\tShow this help message\n");
 
     exit(1);
 }
 
 
-//listCommandUsage prints help message for the listCommand
+// listCommandUsage prints help message for the listCommand
 void listCommandUsage(char *cmd) {
     fprintf(stderr, "USAGE: \n");
-    fprintf(stderr, "\t%s list [OPTIONS]\n", cmd);
+    fprintf(stderr, "\t%s list\n", cmd);
     fprintf(stderr, "\n");
     fprintf(stderr, "OPTIONS:\n");
-    fprintf(stderr, "\t-t, --tag\t\tFilter tasks by tag\n");
     fprintf(stderr, "\t-h, --help\t\tShow this help message\n");
 
     exit(1);
 }
 
-// editCommandUsage prints help message for the editCommand
-void editCommandUsage(char *cmd) {
+// doneCommandUsage prints help message for the doneCommand
+void doneCommandUsage(char *cmd) {
     fprintf(stderr, "USAGE: \n");
-    fprintf(stderr, "\t%s edit\n", cmd);
+    fprintf(stderr, "\t%s done [ID]\n", cmd);
     fprintf(stderr, "\n");
+    fprintf(stderr, "OPTIONS:\n");
+    fprintf(stderr, "\t-h, --help\t\tShow this help message\n");
 
     exit(1);
 }
+
 
 char* defaultFilePath(char *file_path, int size) {
     const char *FILE_NAME = ".todo";
@@ -79,7 +82,7 @@ typedef struct command {
 command command_table[] = {
     {"add", "Add new task to list", addCommand, addCommandUsage},
     {"list", "Prints the list of existing tasks", listCommand, listCommandUsage},
-    {"edit", "Allows to edit todo list", editCommand, editCommandUsage},
+    {"done", "Changes task status to done", doneCommand, doneCommandUsage},
 };
 
 // usage prints help information for command
