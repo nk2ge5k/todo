@@ -53,9 +53,6 @@ int writeHeader(header *head, FILE *fd) {
     return fseek(fd, cursor, SEEK_SET) == 0;
 }
 
-int writeTask() {
-}
-
 int isNumber(char *str) {
     int len = strlen(str);
     for (int i = 0; i != len; i++) {
@@ -251,7 +248,7 @@ int listCommand(int argc, char **argv, char *file_path) {
         }
 
         if (is_done) printf("\033[9m");
-        printf("%3d [%s] %s%s\033[0m", 
+        printf("%3d [%s]\t%s%s\033[0m", 
                 tasks[i].id, tasks[i].project, colors[color], tasks[i].description);
         if (is_done) printf("\033[0m");
         printf("\n");
