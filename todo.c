@@ -158,6 +158,12 @@ static int cmptasks(const void *p1, const void *p2) {
     const task *t1 = (task *)p1;
     const task *t2 = (task *)p2;
 
+    const int t1_done = (t1->done_at > 0);
+    const int t2_done = (t2->done_at > 0);
+
+    if (t1_done != t2_done) 
+        return t1_done > t2_done ? 1 : -1;
+
     if (t1->priority == t2->priority) {
         if (t1->id == t1->id) return 0;
 
@@ -171,6 +177,38 @@ static int cmptasks(const void *p1, const void *p2) {
 char *colors[] = {"\033[32m","\033[34m","\033[33m","\033[31m"};
 
 int listCommand(int argc, char **argv, char *file_path) {
+
+    int narg = 0;
+    int show_done = 0;
+
+    char project[MAX_PROJECT];
+    memset(&project, 0, sizeof(project));
+
+    for (; narg != argc; narg += 2) {
+        if ((narg+1) > argc || argv[narg][0] != '-') {
+            break;
+        }
+
+        if (strcmp("-p", argv[narg]) == 0 ||
+            strcmp("--project", argv[narg]) == 0) {
+
+            if (strlen(argv[narg + 1]) + 1 > MAX_PROJECT) {
+                fprintf(stderr, "list: project name \"%s\" is to long\n", argv[narg + 1]);
+                continue;
+            }
+
+            strcpy(project, argv[narg + 1]);
+            continue;
+        }
+
+        if (strcmp("-d", argv[narg]) == 0 ||
+            strcmp("--done", argv[narg]) == 0) {
+            show_done = 1;
+
+            continue;
+        }
+    }
+
     if(access(file_path, F_OK) != 0) {
         return 1;
     }
@@ -196,7 +234,13 @@ int listCommand(int argc, char **argv, char *file_path) {
     qsort(tasks, head.count, sizeof(task), cmptasks);
 
     for (int i = 0; i < head.count; i++) {
-        if (tasks[i].done_at > 0) continue;
+        if (strlen(project) > 0 && strcasecmp(project, tasks[i].project) != 0) {
+            continue;
+        }
+
+        int is_done = (tasks[i].done_at > 0);
+
+        if (!show_done && is_done) continue;
 
         int color = 0;
         for (int j = 63; j <= 257; j+= 64)  {
@@ -206,8 +250,11 @@ int listCommand(int argc, char **argv, char *file_path) {
             color++;
         }
 
-        printf("%3d [%s] %s%s\033[0m\n", 
+        if (is_done) printf("\033[9m");
+        printf("%3d [%s] %s%s\033[0m", 
                 tasks[i].id, tasks[i].project, colors[color], tasks[i].description);
+        if (is_done) printf("\033[0m");
+        printf("\n");
     }
 
     if (errno != 0) {

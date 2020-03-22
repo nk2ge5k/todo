@@ -9,7 +9,7 @@
 
 // version information about command version
 void version(char *cmd) {
-    fprintf(stderr, "%s: 2.0.0\n", cmd);
+    fprintf(stderr, "%s: 2.1.0\n", cmd);
     exit(1);
 }
 
@@ -33,6 +33,8 @@ void listCommandUsage(char *cmd) {
     fprintf(stderr, "\t%s list\n", cmd);
     fprintf(stderr, "\n");
     fprintf(stderr, "OPTIONS:\n");
+    fprintf(stderr, "\t-p, --project\tProject name\n");
+    fprintf(stderr, "\t-d, --done\tShow completed tasks\n");
     fprintf(stderr, "\t-h, --help\t\tShow this help message\n");
 
     exit(1);
