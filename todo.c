@@ -306,7 +306,7 @@ int addCommand(int argc, char **argv, char *file_path) {
             int p = atoi(argv[narg+1]);
             if (p < 0 || 255 <= p) {
                 fprintf(stderr, "add: invalid value of \"%s\" option, "
-                        "expected number between 0 and 65535\n", argv[narg]);
+                        "expected number between 0 and 255\n", argv[narg]);
                 return 0;
             }
 
