@@ -129,7 +129,7 @@ int doneCommand(int argc, char **argv, char *file_path) {
     }
 
     task t;
-    memset(&t, sizeof(task), 0);
+    memset(&t, 0, sizeof(task));
 
     if (!lookupTask(stream, target_id, &t)) {
         fprintf(stderr, "done: could not find task %d\n", target_id);
@@ -344,7 +344,7 @@ int addCommand(int argc, char **argv, char *file_path) {
         // TODO: read header
 
         if (!readHeader(&h, stream)) {
-            fprintf(stderr, "add: could not read file header: %d %s\n",
+            fprintf(stderr, "add: could not read file header: %s\n",
                     strerror(errno));
             fclose(stream);
             return 0;

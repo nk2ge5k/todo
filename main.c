@@ -9,7 +9,7 @@
 
 // version information about command version
 void version(char *cmd) {
-    fprintf(stderr, "%s: 2.1.1\n", cmd);
+    fprintf(stderr, "%s: 2.1.2\n", cmd);
     exit(1);
 }
 
